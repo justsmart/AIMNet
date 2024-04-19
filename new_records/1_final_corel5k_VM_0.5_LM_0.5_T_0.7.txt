@@ -1,0 +1,2 @@
+AP 1-HL 1-RL AUCme one_error coverage macAUC macro_f1 micro_f1 lr beta sigma
+0.4015+0.0 0.9877+0.0 0.9056+0.0 0.9073+0.0 0.506+0.0 0.2231+0.0 0.7598+0.0 0.053+0.0 0.2286+0.0 1.0 0.2 0
