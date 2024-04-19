@@ -60,42 +60,7 @@ class MLP(nn.Module):
             input = l(input)
         return input
 
-class GINLayer(nn.Module):
-    def __init__(self, mlp, eps=0.0, train_eps=True, residual=True):
-        super(GINLayer, self).__init__()
-        self.mlp = mlp
-        self.initial_eps = eps
-        self.residual = residual
-        if train_eps:
-            self.eps = torch.nn.Parameter(torch.Tensor([eps]))
-        else:
-            self.register_buffer('eps', torch.Tensor([eps]))
-        
-        self.reset_parameters()
-    
-    def reset_parameters(self):
-        self.mlp.reset_parameters()
-        self.eps.data.fill_(self.initial_eps)
-    
-    def forward(self, input, adj):
-        res = input
-        
-        # Aggregating neighborhood information
-        neighs = torch.matmul(adj, res)
 
-        # Reweighting the center node representation
-        res = (1 + self.eps) * res + neighs
-        
-        # Updating node representations
-        res = self.mlp(res)
-        
-        # Residual connection
-        if self.residual:
-            output = res + input
-        else:
-            output = res
-        
-        return output
 class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
@@ -131,10 +96,7 @@ class GraphAttentionLayer(nn.Module):
             return h_prime
 
     def _prepare_attentional_mechanism_input(self, Wh):
-        # Wh.shape (N, out_feature)
-        # self.a.shape (2 * out_feature, 1)
-        # Wh1&2.shape (N, 1)
-        # e.shape (N, N)
+
         Wh1 = torch.matmul(Wh, self.a[:self.out_features, :])
         Wh2 = torch.matmul(Wh, self.a[self.out_features:, :])
         # broadcast add
@@ -250,12 +212,7 @@ class FDModel(nn.Module):
         self.beta = beta
         assert self.beta >0
         hidden_list = [hidden_features] * (out_layers-1)
-        # self.Q = MLP(hidden_features, out_features, hidden_list,
-        #                batchNorm, nonlinearity, negative_slope)
-        # self.K = MLP(hidden_features, out_features, hidden_list,
-        #                batchNorm, nonlinearity, negative_slope)
-        # self.V = MLP(hidden_features, out_features, hidden_list,
-        #                batchNorm, nonlinearity, negative_slope)
+
         self.Q = nn.Linear(hidden_features, out_features)
         self.K = nn.Linear(hidden_features, out_features)
         self.V = nn.Linear(hidden_features, out_features)
@@ -273,25 +230,22 @@ class FDModel(nn.Module):
 
     
     def forward(self, x, y, mask=None):
-        # x = self.NN1(x) # b1 x h
         
-        # 利用循环对x中的每个元素执行NN1操作
+        
         x_processed = []
         for i in range(len(x)):
             x_i = self.MLP_list[i](x[i])
             x_processed.append(x_i)
         x_processed = torch.stack(x_processed,dim=0) # m n d
-        # x_processed = self.norm(x_processed)
+
         d = x_processed.shape[-1]
-        # x_q = self.Q(x_processed)
+
         x_q = x_processed
-        # x_q = self.norm(x_q)
+
         x_q = F.normalize(x_q,dim=-1)
-        # x_k = self.K(x_processed)
-        # x_v = self.V(x_processed)
-        # new_x = attention(x_q.transpose(0,1),x_k.transpose(0,1),x_v.transpose(0,1),d,mask)
+
         x_att_score = x_q.matmul(x_q.transpose(1,2)) # m n n 
-        # x_att_score = torch.exp(x_att_score)
+
         x_att_score = (x_att_score/self.beta).exp()
         if mask is not None:
             mask_12 = torch.matmul(mask.float().t().unsqueeze(dim=-1),mask.float().t().unsqueeze(dim=1)) # m n n
@@ -313,7 +267,7 @@ class FDModel(nn.Module):
 
         y_n = self.NN2(y).sigmoid_() # b2 x h
 
-        # y_n = self.NN2(y) # b2 x h
+
         Z = []
         for i in range(new_x.shape[0]):
             z_i = new_x[i].unsqueeze(1) * y_n.unsqueeze(0)
